@@ -1,75 +1,37 @@
-# ─────────────────────────────────────
-# CrashGuard System - sensor_mpu6050.py
-# Reads acceleration and tilt from
-# GY-521 MPU6050 via I2C
-# ─────────────────────────────────────
-
 import smbus
 import math
 
-MPU_ADDR   = 0x68
-PWR_MGMT_1 = 0x6B
-
 class MPU6050:
-    def __init__(self, bus_id=1):
-        self.bus = smbus.SMBus(bus_id)
-        # Wake up sensor
-        self.bus.write_byte_data(
-            MPU_ADDR, PWR_MGMT_1, 0
-        )
-        # Maximum sample rate
-        self.bus.write_byte_data(
-            MPU_ADDR, 0x19, 0
-        )
-        # Disable low pass filter
-        # for fastest impact response
-        self.bus.write_byte_data(
-            MPU_ADDR, 0x1A, 0
-        )
-        print("MPU6050 initialized")
+    def __init__(self):
+        """Initialize I2C and optimize sensor for fast impact detection."""
+        try:
+            self.bus = smbus.SMBus(1)
+            self.addr = 0x68
+            # Wake up sensor (0x6B)
+            self.bus.write_byte_data(self.addr, 0x6B, 0)
+            # Set Sample Rate to maximum (0x19)
+            self.bus.write_byte_data(self.addr, 0x19, 0)
+            # Disable digital low pass filter for speed (0x1A)
+            self.bus.write_byte_data(self.addr, 0x1A, 0)
+        except Exception as e:
+            print(f"Sensor Initialization Error: {e}")
 
     def _read_raw(self, addr):
-        high = self.bus.read_byte_data(
-            MPU_ADDR, addr
-        )
-        low  = self.bus.read_byte_data(
-            MPU_ADDR, addr + 1
-        )
-        val  = (high << 8) | low
-        if val > 32768:
-            val -= 65536
-        return val
+        """Read 16-bit raw data from the I2C registers."""
+        high = self.bus.read_byte_data(self.addr, addr)
+        low = self.bus.read_byte_data(self.addr, addr + 1)
+        val = (high << 8) | low
+        return val - 65536 if val > 32768 else val
 
-    def read_accel(self):
+    def get_magnitude(self):
+        """Calculate the total G-force magnitude (Resultant Vector)."""
         ax = self._read_raw(0x3B) / 16384.0
         ay = self._read_raw(0x3D) / 16384.0
         az = self._read_raw(0x3F) / 16384.0
-        return ax, ay, az
-
-    def get_magnitude(self):
-        ax, ay, az = self.read_accel()
-        return math.sqrt(
-            ax**2 + ay**2 + az**2
-        )
+        return math.sqrt(ax**2 + ay**2 + az**2)
 
     def get_tilt(self):
-        ax, ay, az = self.read_accel()
-        return math.degrees(
-            math.atan2(
-                ay,
-                math.sqrt(ax**2 + az**2)
-            )
-        )
-
-    def get_all(self):
-        ax, ay, az = self.read_accel()
-        magnitude = math.sqrt(
-            ax**2 + ay**2 + az**2
-        )
-        tilt = math.degrees(
-            math.atan2(
-                ay,
-                math.sqrt(ax**2 + az**2)
-            )
-        )
-        return magnitude, tilt
+        """Calculate the tilt angle to detect vehicle rollover."""
+        ay = self._read_raw(0x3D) / 16384.0
+        az = self._read_raw(0x3F) / 16384.0
+        return math.degrees(math.atan2(ay, az))
