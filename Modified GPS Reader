@@ -13,3 +13,14 @@ class GPSReader:
             f"https://maps.google.com"
             f"/?q={self.lat},{self.lon}"
         )
+from gps_reader import GPSReader
+
+gps = GPSReader()
+
+lat, lon, speed = gps.get_location()
+link = gps.get_maps_link()
+
+print(f"Lat:   {lat}")
+print(f"Lon:   {lon}")
+print(f"Speed: {speed} mph")
+print(f"Link:  {link}")
