@@ -1,0 +1,15 @@
+class GPSReader:
+    def __init__(self):
+        # Hardcoded Ruston Louisiana for demo
+        self.lat   = 32.5232
+        self.lon   = -92.6379
+        self.speed = 45.0
+
+    def get_location(self):
+        return self.lat, self.lon, self.speed
+
+    def get_maps_link(self):
+        return (
+            f"https://maps.google.com"
+            f"/?q={self.lat},{self.lon}"
+        )
