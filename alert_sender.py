@@ -1,34 +1,24 @@
 # ─────────────────────────────────────
 # CrashGuard System - alert_sender.py
-# FEATURE 2: SMART EMAIL WITH MAPS LINK
+# FEATURE: SMART EMAIL WITH MAPS LINK
 #
-# Sends professional emergency email
+# Sends professional emergency HTML email
 # with clickable Google Maps link
-# and full accident details
-# Also sends Telegram with location pin
+# and full accident details.
 # ─────────────────────────────────────
 
 import smtplib
-import requests
 import threading
 from datetime import datetime
-from email.mime.text      import MIMEText
+from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from config import (
-    TELEGRAM_TOKEN,
-    TELEGRAM_CHAT_ID,
-    EMAIL_FROM,
-    EMAIL_PASSWORD,
-    EMAIL_TO
-)
+from config import EMAIL_FROM, EMAIL_PASSWORD, EMAIL_TO
 
-def send_email(severity, lat, lon,
-               speed, accel, tilt, reason):
-
+def send_email(severity, lat, lon, speed, accel, tilt, reason):
     # Build Google Maps link
     if lat and lon:
         maps_link = (
-            f"https://maps.google.com"
+            f"http://googleusercontent.com/maps.google.com/maps"
             f"/?q={lat},{lon}"
         )
         coords = f"{lat:.6f}, {lon:.6f}"
@@ -36,9 +26,7 @@ def send_email(severity, lat, lon,
         maps_link = "Location unavailable"
         coords    = "Not available"
 
-    now = datetime.now().strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     # Severity color for email
     color_map = {
@@ -51,128 +39,59 @@ def send_email(severity, lat, lon,
     # HTML email body
     html_body = f"""
     <html>
-    <body style="font-family:Arial,sans-serif;
-                 max-width:600px;margin:0 auto;
-                 padding:20px;">
-
-        <div style="background:{color};
-                    color:white;
-                    padding:20px;
-                    border-radius:8px;
-                    text-align:center;">
-            <h1 style="margin:0">
-                🚨 ACCIDENT DETECTED
-            </h1>
-            <h2 style="margin:5px 0">
-                Severity: {severity}
-            </h2>
+    <body style="font-family:Arial,sans-serif; max-width:600px;margin:0 auto; padding:20px;">
+        <div style="background:{color}; color:white; padding:20px; border-radius:8px; text-align:center;">
+            <h1 style="margin:0">🚨 ACCIDENT DETECTED</h1>
+            <h2 style="margin:5px 0">Severity: {severity}</h2>
         </div>
 
-        <div style="background:#f5f5f5;
-                    padding:20px;
-                    margin-top:15px;
-                    border-radius:8px;">
+        <div style="background:#f5f5f5; padding:20px; margin-top:15px; border-radius:8px;">
             <h3>Accident Details</h3>
-            <table style="width:100%;
-                          border-collapse:collapse;">
+            <table style="width:100%; border-collapse:collapse;">
                 <tr>
-                    <td style="padding:8px;
-                               font-weight:bold;">
-                        Time
-                    </td>
-                    <td style="padding:8px;">
-                        {now}
-                    </td>
+                    <td style="padding:8px; font-weight:bold;">Time</td>
+                    <td style="padding:8px;">{now}</td>
                 </tr>
                 <tr style="background:#ebebeb;">
-                    <td style="padding:8px;
-                               font-weight:bold;">
-                        Severity
-                    </td>
-                    <td style="padding:8px;
-                               color:{color};
-                               font-weight:bold;">
-                        {severity}
-                    </td>
+                    <td style="padding:8px; font-weight:bold;">Severity</td>
+                    <td style="padding:8px; color:{color}; font-weight:bold;">{severity}</td>
                 </tr>
                 <tr>
-                    <td style="padding:8px;
-                               font-weight:bold;">
-                        Type
-                    </td>
-                    <td style="padding:8px;">
-                        {reason}
-                    </td>
+                    <td style="padding:8px; font-weight:bold;">Type</td>
+                    <td style="padding:8px;">{reason}</td>
                 </tr>
                 <tr style="background:#ebebeb;">
-                    <td style="padding:8px;
-                               font-weight:bold;">
-                        Speed at impact
-                    </td>
-                    <td style="padding:8px;">
-                        {speed:.1f} mph
-                    </td>
+                    <td style="padding:8px; font-weight:bold;">Speed at impact</td>
+                    <td style="padding:8px;">{speed:.1f} mph</td>
                 </tr>
                 <tr>
-                    <td style="padding:8px;
-                               font-weight:bold;">
-                        Acceleration
-                    </td>
-                    <td style="padding:8px;">
-                        {accel:.2f}g
-                    </td>
+                    <td style="padding:8px; font-weight:bold;">Acceleration</td>
+                    <td style="padding:8px;">{accel:.2f}g</td>
                 </tr>
                 <tr style="background:#ebebeb;">
-                    <td style="padding:8px;
-                               font-weight:bold;">
-                        Tilt angle
-                    </td>
-                    <td style="padding:8px;">
-                        {tilt:.1f} degrees
-                    </td>
+                    <td style="padding:8px; font-weight:bold;">Tilt angle</td>
+                    <td style="padding:8px;">{tilt:.1f} degrees</td>
                 </tr>
                 <tr>
-                    <td style="padding:8px;
-                               font-weight:bold;">
-                        Coordinates
-                    </td>
-                    <td style="padding:8px;">
-                        {coords}
-                    </td>
+                    <td style="padding:8px; font-weight:bold;">Coordinates</td>
+                    <td style="padding:8px;">{coords}</td>
                 </tr>
             </table>
         </div>
 
-        <div style="text-align:center;
-                    margin-top:20px;">
-            <a href="{maps_link}"
-               style="background:#cc0000;
-                      color:white;
-                      padding:15px 30px;
-                      text-decoration:none;
-                      border-radius:8px;
-                      font-size:18px;
-                      font-weight:bold;">
+        <div style="text-align:center; margin-top:20px;">
+            <a href="{maps_link}" style="background:#cc0000; color:white; padding:15px 30px; text-decoration:none; border-radius:8px; font-size:18px; font-weight:bold;">
                 📍 VIEW LOCATION ON MAP
             </a>
         </div>
 
-        <div style="margin-top:20px;
-                    padding:15px;
-                    background:#fff3f3;
-                    border-left:4px solid {color};
-                    border-radius:4px;">
-            <p style="margin:0;
-                      font-size:14px;
-                      color:#555;">
-                This is an automated alert from
-                the CrashGuard System.
-                Please contact emergency services
-                immediately if needed.
+        <div style="margin-top:20px; padding:15px; background:#fff3f3; border-left:4px solid {color}; border-radius:4px;">
+            <p style="margin:0; font-size:14px; color:#555;">
+                This is an automated alert from the CrashGuard System.
+                Please contact emergency services immediately if needed.
                 The driver may require assistance.
             </p>
         </div>
-
     </body>
     </html>
     """
@@ -194,17 +113,12 @@ def send_email(severity, lat, lon,
         msg            = MIMEMultipart("alternative")
         msg["From"]    = EMAIL_FROM
         msg["To"]      = EMAIL_TO
-        msg["Subject"] = (
-            f"🚨 ACCIDENT ALERT - "
-            f"{severity} | CrashGuard"
-        )
+        msg["Subject"] = f"🚨 ACCIDENT ALERT - {severity} | CrashGuard"
 
         msg.attach(MIMEText(plain_body, "plain"))
         msg.attach(MIMEText(html_body,  "html"))
 
-        server = smtplib.SMTP(
-            "smtp.gmail.com", 587
-        )
+        server = smtplib.SMTP("smtp.gmail.com", 587)
         server.starttls()
         server.login(EMAIL_FROM, EMAIL_PASSWORD)
         server.send_message(msg)
@@ -214,81 +128,11 @@ def send_email(severity, lat, lon,
     except Exception as e:
         print(f"Email failed: {e}")
 
-
-def send_telegram(severity, lat, lon,
-                  speed, accel, tilt, reason):
-    if lat and lon:
-        maps_link = (
-            f"https://maps.google.com"
-            f"/?q={lat},{lon}"
-        )
-    else:
-        maps_link = "Location unavailable"
-
-    now = datetime.now().strftime(
-        "%H:%M:%S"
-    )
-
-    message = (
-        f"🚨 *ACCIDENT DETECTED*\n\n"
-        f"*Severity:* {severity}\n"
-        f"*Type:* {reason}\n"
-        f"*Time:* {now}\n"
-        f"*Speed:* {speed:.1f} mph\n"
-        f"*Acceleration:* {accel:.2f}g\n"
-        f"*Tilt:* {tilt:.1f} degrees\n\n"
-        f"📍 *Location:*\n{maps_link}\n\n"
-        f"Please send help immediately!"
-    )
-
-    try:
-        # Send text message
-        url = (
-            f"https://api.telegram.org"
-            f"/bot{TELEGRAM_TOKEN}/sendMessage"
-        )
-        requests.post(url, data={
-            "chat_id":    TELEGRAM_CHAT_ID,
-            "text":       message,
-            "parse_mode": "Markdown"
-        }, timeout=10)
-
-        # Send live location pin
-        if lat and lon:
-            url2 = (
-                f"https://api.telegram.org"
-                f"/bot{TELEGRAM_TOKEN}/sendLocation"
-            )
-            requests.post(url2, data={
-                "chat_id":   TELEGRAM_CHAT_ID,
-                "latitude":  lat,
-                "longitude": lon
-            }, timeout=10)
-
-        print("Telegram sent successfully!")
-
-    except Exception as e:
-        print(f"Telegram failed: {e}")
-
-
-def send_all_alerts(severity, lat, lon,
-                    speed, accel, tilt, reason):
-    # Send both simultaneously
-    # using threads so neither blocks other
+def send_all_alerts(severity, lat, lon, speed, accel, tilt, reason):
+    # Run email in background thread to prevent UI freezing
     t1 = threading.Thread(
         target=send_email,
-        args=(severity, lat, lon,
-              speed, accel, tilt, reason),
-        daemon=True
-    )
-    t2 = threading.Thread(
-        target=send_telegram,
-        args=(severity, lat, lon,
-              speed, accel, tilt, reason),
+        args=(severity, lat, lon, speed, accel, tilt, reason),
         daemon=True
     )
     t1.start()
-    t2.start()
-    t1.join(timeout=15)
-    t2.join(timeout=15)
-    print("All alerts sent!")
