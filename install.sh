@@ -6,6 +6,10 @@
 
 echo "🚀 Starting CrashGuard Pro Installation..."
 
+# 0. Auto-Enable I2C Hardware Interface
+echo "🔌 Enabling I2C Interface..."
+sudo raspi-config nonint do_i2c 0
+
 # 1. Update the System
 echo "🔄 Updating system packages..."
 sudo apt update && sudo apt upgrade -y
@@ -25,10 +29,19 @@ sudo apt install -y \
     wget
 
 # 3. Install Python Libraries
+# Note: --break-system-packages is required for Raspberry Pi OS (Bookworm) and newer
 echo "🐍 Installing Python libraries..."
 pip3 install \
     pynmea2 \
-    p_serial \
+    pyserial \
+    SpeechRecognition \
+    pyttsx3 \
+    vosk \
+    requests \
+    --break-system-packages || \
+pip3 install \
+    pynmea2 \
+    pyserial \
     SpeechRecognition \
     pyttsx3 \
     vosk \
@@ -48,10 +61,13 @@ echo "🧠 Downloading Vosk Offline Voice Model..."
 MODEL_URL="https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
 MODEL_NAME="vosk-model-small-en-us-0.15"
 
-if [ ! -d "$MODEL_NAME" ]; then
+if [ ! -d "model" ] && [ ! -d "$MODEL_NAME" ]; then
     wget -q $MODEL_URL
     unzip -q "${MODEL_NAME}.zip"
     rm "${MODEL_NAME}.zip"
+    
+    # Rename to standard 'model' folder for cleaner directory
+    mv "$MODEL_NAME" "model"
     echo "✅ Voice model installed successfully."
 else
     echo "ℹ️ Voice model already exists. Skipping."
@@ -59,11 +75,10 @@ fi
 
 echo ""
 echo "──────────────────────────────────────────────────────────"
-echo "✅ INSTALLATION COMPLETE!"
+echo "✅ CRASHGUARD OS INSTALLATION COMPLETE!"
 echo "──────────────────────────────────────────────────────────"
 echo "NEXT STEPS:"
-echo "1. Run 'sudo raspi-config' to enable I2C."
-echo "2. Edit 'config.py' with your Gmail App Password."
-echo "3. Run 'alsamixer' to turn up the Speaker & Mic volume."
-echo "4. REBOOT YOUR PI NOW: sudo reboot"
+echo "1. Edit 'config.py' to add your Gmail App Password."
+echo "2. Run 'alsamixer' in terminal to turn up your Speaker & Mic volume."
+echo "3. REBOOT YOUR PI NOW: type 'sudo reboot'"
 echo "──────────────────────────────────────────────────────────"
