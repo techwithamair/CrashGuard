@@ -1,0 +1,188 @@
+sudo apt update && sudo apt upgrade -y
+
+sudo raspi-config
+
+Interface Options → I2C → Enable → OK
+Interface Options → Serial Port →
+  Login shell over serial? → NO
+  Serial hardware enabled? → YES
+→ Finish → Reboot YES
+
+sudo apt install python3-pip i2c-tools python3-smbus -y
+
+pip3 install pyserial pynmea2 --break-system-packages
+
+pip3 install pyserial pynmea2
+sudo apt install python3-serial python3-pynmea2 -y
+sudo pip3 install pyserial pynmea2
+
+sudo raspi-config nonint do_i2c 1
+sudo raspi-config nonint do_serial_hw 1
+
+sudo reboot
+sudo apt install python3-smbus i2c-tools -y
+sudo i2cdetect -y 1
+
+
+
+sudo raspi-config nonint do_i2c 0
+sudo reboot
+ls /dev/i2c*
+
+sudo i2cdetect -y 1
+
+
+sudo i2cdetect -y 1
+
+
+nano test_mpu.py  
+
+import smbus
+import math
+import time
+
+bus = smbus.SMBus(1)
+addr = 0x68
+
+# Wake up
+bus.write_byte_data(addr, 0x6B, 0)
+
+def read_raw(reg):
+    high = bus.read_byte_data(addr, reg)
+    low  = bus.read_byte_data(addr, reg+1)
+    val  = (high << 8) | low
+    if val > 32768:
+        val -= 65536
+    return val
+
+def get_g():
+    ax = read_raw(0x3B) / 16384.0
+    ay = read_raw(0x3D) / 16384.0
+    az = read_raw(0x3F) / 16384.0
+    return math.sqrt(ax**2 + ay**2 + az**2)
+
+def get_tilt():
+    ax = read_raw(0x3B) / 16384.0
+    ay = read_raw(0x3D) / 16384.0
+    az = read_raw(0x3F) / 16384.0
+    return math.degrees(math.atan2(ay, math.sqrt(ax**2 + az**2)))
+
+print("MPU6050 running! Shake it to test...")
+while True:
+    g    = get_g()
+    tilt = get_tilt()
+    print(f"G-force: {g:.2f}g   Tilt: {tilt:.1f} degrees")
+    time.sleep(0.1)
+
+python3 test_mpu.py
+
+
+
+
+ls /dev/serial*
+# or
+ls /dev/tty*
+
+cat /dev/serial0
+
+nano test_gps.py
+
+import serial
+import pynmea2
+import time
+
+ser = serial.Serial("/dev/serial0", 9600, timeout=1)
+print("Waiting for GPS data...")
+
+while True:
+    try:
+        line = ser.readline().decode("utf-8", errors="ignore")
+        if line.startswith("$GPRMC"):
+            msg = pynmea2.parse(line)
+            if msg.latitude:
+                speed = msg.spd_over_grnd * 1.15078
+                print(f"Lat: {msg.latitude:.5f}")
+                print(f"Lon: {msg.longitude:.5f}")
+                print(f"Speed: {speed:.1f} mph")
+                print("---")
+    except Exception as e:
+        print(f"Error: {e}")
+    time.sleep(0.5)
+
+
+python3 test_gps.py 
+
+
+
+
+nano test_both.py
+
+import smbus
+import math
+import serial
+import pynmea2
+import threading
+import time
+
+# ── MPU6050 setup ──
+bus  = smbus.SMBus(1)
+addr = 0x68
+bus.write_byte_data(addr, 0x6B, 0)
+
+def read_raw(reg):
+    high = bus.read_byte_data(addr, reg)
+    low  = bus.read_byte_data(addr, reg+1)
+    val  = (high << 8) | low
+    if val > 32768:
+        val -= 65536
+    return val
+
+def get_g():
+    ax = read_raw(0x3B) / 16384.0
+    ay = read_raw(0x3D) / 16384.0
+    az = read_raw(0x3F) / 16384.0
+    return math.sqrt(ax**2 + ay**2 + az**2)
+
+def get_tilt():
+    ax = read_raw(0x3B) / 16384.0
+    ay = read_raw(0x3D) / 16384.0
+    az = read_raw(0x3F) / 16384.0
+    return math.degrees(math.atan2(ay, math.sqrt(ax**2+az**2)))
+
+# ── GPS setup ──
+lat   = None
+lon   = None
+speed = 0.0
+
+def gps_thread():
+    global lat, lon, speed
+    ser = serial.Serial("/dev/serial0", 9600, timeout=1)
+    while True:
+        try:
+            line = ser.readline().decode("utf-8", errors="ignore")
+            if line.startswith("$GPRMC"):
+                msg = pynmea2.parse(line)
+                if msg.latitude:
+                    lat   = msg.latitude
+                    lon   = msg.longitude
+                    speed = msg.spd_over_grnd * 1.15078
+        except:
+            pass
+
+t = threading.Thread(target=gps_thread, daemon=True)
+t.start()
+
+print("Both sensors running! Press Ctrl+C to stop")
+print("=" * 45)
+
+while True:
+    g    = get_g()
+    tilt = get_tilt()
+    print(f"G: {g:.2f}g | Tilt: {tilt:.1f}° | "
+          f"Speed: {speed:.1f}mph | "
+          f"GPS: {lat}, {lon}")
+    time.sleep(0.2)
+
+
+python3 test_both.py
+
