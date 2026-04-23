@@ -18,7 +18,7 @@ def send_email(severity, lat, lon, speed, accel, tilt, reason):
     # Build Google Maps link
     if lat and lon:
         maps_link = (
-            f"http://googleusercontent.com/maps.google.com/maps"
+            f"https://maps.google.com/?q=32.5232,-92.6379"
             f"/?q={lat},{lon}"
         )
         coords = f"{lat:.6f}, {lon:.6f}"
