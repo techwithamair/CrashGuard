@@ -1,5 +1,6 @@
 # ─────────────────────────────────────
 # CrashGuard System - config.py
+# All settings in one place (Email Only)
 # ─────────────────────────────────────
 
 # Accident detection thresholds
@@ -10,21 +11,21 @@ TILT_THRESHOLD       = 45    # degrees rollover
 SPEED_DROP_THRESHOLD = 30    # mph sudden loss
 
 # False positive filter
-# How many readings before confirming accident
+# How many consecutive readings before confirming accident
 CONFIRM_READINGS     = 3
 
 # Voice response timeout seconds
 RESPONSE_TIMEOUT     = 10
 
-# GPS settings (Kept for module compatibility)
+# GPS serial port
 GPS_PORT             = "/dev/serial0"
 GPS_BAUDRATE         = 9600
 
-# Alert contacts (TELEGRAM REMOVED)
+# Alert contacts (Email Only)
 EMAIL_FROM           = "your_email@gmail.com"
-EMAIL_PASSWORD       = "your_16_digit_app_password"
+EMAIL_PASSWORD       = "your_app_password"
 EMAIL_TO             = "emergency@contact.com"
 
-# Storage and Output
+# Map output file
 MAP_OUTPUT_FILE      = "accident_map.html"
 LOG_FILE             = "accident_log.csv"
