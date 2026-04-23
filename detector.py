@@ -2,13 +2,6 @@
 # CrashGuard System - detector.py
 # Smart accident detection with
 # FALSE POSITIVE FILTERING
-#
-# How false positive filtering works:
-# Instead of triggering on ONE spike
-# system requires MULTIPLE consecutive
-# readings above threshold
-# Road bumps = single spike = ignored
-# Real crash = sustained readings = ALERT
 # ─────────────────────────────────────
 
 from config import (
@@ -118,9 +111,7 @@ class AccidentDetector:
 
         return "NONE"
 
-    def _classify(self, impact, rollover,
-                  speed_ev, accel, tilt):
-
+    def _classify(self, impact, rollover, speed_ev, accel, tilt):
         # Nothing triggered
         if (impact   == "NONE" and
             rollover == "NONE" and
