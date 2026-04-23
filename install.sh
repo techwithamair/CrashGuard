@@ -1,16 +1,17 @@
 #!/bin/bash
-# ─────────────────────────────────────
-# CrashGuard System - install.sh
-# Run this once to set everything up
-# sudo bash install.sh
-# ─────────────────────────────────────
+# ──────────────────────────────────────────────────────────
+# CrashGuard System - Final Expo Setup Script
+# Run this once on your Raspberry Pi: sudo bash install.sh
+# ──────────────────────────────────────────────────────────
 
-echo "Installing CrashGuard dependencies..."
+echo "🚀 Starting CrashGuard Pro Installation..."
 
-# Update system
+# 1. Update the System
+echo "🔄 Updating system packages..."
 sudo apt update && sudo apt upgrade -y
 
-# System packages
+# 2. Install System Dependencies
+echo "📦 Installing system dependencies..."
 sudo apt install -y \
     python3-pip \
     python3-tk \
@@ -23,43 +24,46 @@ sudo apt install -y \
     unzip \
     wget
 
-# Python packages
+# 3. Install Python Libraries
+echo "🐍 Installing Python libraries..."
 pip3 install \
     pynmea2 \
-    pyserial \
+    p_serial \
     SpeechRecognition \
     pyttsx3 \
     vosk \
-    requests \
-    folium
+    requests
 
-# Install WM8960 Audio HAT driver
-echo "Installing WM8960 driver..."
-cd /home/pi
-git clone https://github.com/waveshare/WM8960-Audio-HAT
+# 4. Install WM8960 Audio HAT Drivers
+echo "🔊 Installing WM8960 Audio HAT drivers..."
+if [ ! -d "WM8960-Audio-HAT" ]; then
+    git clone https://github.com/waveshare/WM8960-Audio-HAT
+fi
 cd WM8960-Audio-HAT
 sudo ./install.sh
 cd ..
 
-# Download Vosk small English model
-echo "Downloading Vosk offline model (50MB)..."
-wget -q https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
-unzip -q vosk-model-small-en-us-0.15.zip
-rm vosk-model-small-en-us-0.15.zip
+# 5. Download and Setup Vosk Voice Model
+echo "🧠 Downloading Vosk Offline Voice Model..."
+MODEL_URL="https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
+MODEL_NAME="vosk-model-small-en-us-0.15"
+
+if [ ! -d "$MODEL_NAME" ]; then
+    wget -q $MODEL_URL
+    unzip -q "${MODEL_NAME}.zip"
+    rm "${MODEL_NAME}.zip"
+    echo "✅ Voice model installed successfully."
+else
+    echo "ℹ️ Voice model already exists. Skipping."
+fi
 
 echo ""
-echo "Installation complete!"
-echo ""
-echo "Next steps:"
-echo "1. Enable I2C: sudo raspi-config"
-echo "   Interface Options > I2C > Enable"
-echo "2. Enable Serial: sudo raspi-config"
-echo "   Interface Options > Serial Port"
-echo "   Login shell: NO"
-echo "   Serial hardware: YES"
-echo "3. Edit config.py with your:"
-echo "   - Telegram token and chat ID"
-echo "   - Gmail address and app password"
-echo "   - Emergency contact email"
-echo "4. Reboot: sudo reboot"
-echo "5. Run: python3 main.py"
+echo "──────────────────────────────────────────────────────────"
+echo "✅ INSTALLATION COMPLETE!"
+echo "──────────────────────────────────────────────────────────"
+echo "NEXT STEPS:"
+echo "1. Run 'sudo raspi-config' to enable I2C."
+echo "2. Edit 'config.py' with your Gmail App Password."
+echo "3. Run 'alsamixer' to turn up the Speaker & Mic volume."
+echo "4. REBOOT YOUR PI NOW: sudo reboot"
+echo "──────────────────────────────────────────────────────────"
