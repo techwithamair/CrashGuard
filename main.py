@@ -1,219 +1,139 @@
 # ─────────────────────────────────────
 # CrashGuard System - main.py
-# COMPLETE FINAL CODE
+# MASTER COORDINATOR
 #
-# Hardware:
-#   GY-521 MPU6050  → I2C (SDA/SCL)
-#   NEO-6M GPS      → UART (TX/RX)
-#   WM8960 HAT      → I2S + I2C
-#   Pi keyboard     → WiFi for alerts
-#
-# Features:
-#   1. Folium map display
-#   2. Smart email with Google Maps
-#   3. False positive filtering
+# Links the hardware sensors, GPS, Voice
+# Engine, GUI, Logger, and Email Alerts
+# into a single, bulletproof thread loop.
 # ─────────────────────────────────────
 
 import time
 import threading
 import tkinter as tk
 
+# Import all custom CrashGuard modules
 from sensor_mpu6050 import MPU6050
-from gps_reader     import GPSReader
-from voice_system   import speak, ask_driver
-from alert_sender   import send_all_alerts
-from map_display    import generate_map
-from logger         import log_event
-from detector       import AccidentDetector
-from gui            import CrashGuardGUI
+from gps_reader import GPSReader
+from voice_system import ask_and_listen, speak
+from alert_sender import send_all_alerts
+from detector import AccidentDetector
+from gui import CrashGuardGUI
+from logger import log_event
 
-# ─────────────────────────────────────
-# INITIALIZE ALL HARDWARE
-# ─────────────────────────────────────
-print("CrashGuard starting up...")
-
-sensor   = MPU6050()
-gps      = GPSReader()
+# Initialize Core Hardware & Logic Components
+sensor = MPU6050()
+gps = GPSReader()
 detector = AccidentDetector()
 
-# ─────────────────────────────────────
-# EMERGENCY SEQUENCE
-# Called when accident is detected
-# ─────────────────────────────────────
 def emergency_sequence(gui, event):
-
-    severity = event["severity"]
-    accel    = event["accel"]
-    tilt     = event["tilt"]
-    reason   = event["reason"]
-    atype    = event["type"]
-
-    # Get GPS location immediately
+    """
+    Executes the full crash response protocol:
+    Voice prompt -> Log -> Check response -> Alert.
+    """
     lat, lon, speed = gps.get_location()
-
-    print(f"\n{'='*40}")
-    print(f"ACCIDENT DETECTED!")
-    print(f"Type:     {atype}")
-    print(f"Severity: {severity}")
-    print(f"Reason:   {reason}")
-    print(f"Accel:    {accel:.2f}g")
-    print(f"Tilt:     {tilt:.1f} degrees")
-    print(f"Speed:    {speed:.1f} mph")
-    print(f"GPS:      {lat}, {lon}")
-    print(f"{'='*40}\n")
-
-    # Update GUI
-    gui.update_accident(
-        severity, atype,
-        accel, tilt, speed,
-        lat, lon, 0
-    )
-
-    # Generate map immediately
-    # runs in background while asking driver
-    if lat and lon:
-        map_thread = threading.Thread(
-            target=generate_map,
-            args=(lat, lon, severity,
-                  speed, accel, tilt),
-            daemon=True
-        )
-        map_thread.start()
-
-    # Ask driver if they are okay
-    # WM8960 speaks and listens
-    gui.update_listening()
-    response = ask_driver()
-
-    print(f"Driver response: {response}")
-
-    # ─────────────────────────────
-    # HANDLE RESPONSE
-    # ─────────────────────────────
-
-    if response == "OKAY":
-        # Driver is fine
-        speak("Okay! Alert cancelled. Stay safe!")
-        gui.update_cancelled()
-        log_event(
-            severity, accel, tilt,
-            lat, lon, speed,
-            "CANCELLED", reason
-        )
-        print("Alert cancelled by driver")
-        time.sleep(2)
-        return
-
-    elif response == "HELP":
-        # Driver needs help
-        speak(
-            "Sending emergency alert now! "
-            "Help is on the way!"
-        )
-
-    else:
-        # No response = assume unconscious
-        speak(
-            "No response detected. "
-            "Assuming emergency. "
-            "Sending alert automatically!"
-        )
-
-    # ─────────────────────────────
-    # SEND ALL ALERTS
-    # ─────────────────────────────
-    gui.update_accident(
-        severity, atype,
-        accel, tilt, speed,
-        lat, lon, 0
-    )
-
-    # Send email + telegram simultaneously
-    send_all_alerts(
-        severity, lat, lon,
-        speed, accel, tilt, reason
-    )
-
-    # Log event
+    
+    # 1. Update GUI to show the microphone is active
+    gui.root.after(0, gui.update_listening)
+    
+    # 2. Trigger Vosk Voice Engine
+    speak(f"Alert! {event['reason']}. Are you okay?")
+    driver_response = ask_and_listen()
+    
+    # 3. Permanently log the event and the driver's response to CSV
     log_event(
-        severity, accel, tilt,
-        lat, lon, speed,
-        response, reason
+        severity=event["severity"],
+        accel=event["accel"],
+        tilt=event["tilt"],
+        lat=lat,
+        lon=lon,
+        speed=speed,
+        response=driver_response,
+        reason=event["type"]
     )
+    
+    # 4. Handle the response
+    if driver_response == "OKAY":
+        # Driver is safe. Cancel alert.
+        gui.root.after(0, gui.update_cancelled)
+        speak("Incident logged. System returning to normal.")
+        time.sleep(2) # Give the judge 2 seconds to read the cancellation on screen
+    else:
+        # Driver needs help (or timeout occurred). Dispatch alerts!
+        speak("Dispatching emergency alerts now.")
+        
+        # Ensure the GUI stays locked in the red "Emergency" state
+        gui.root.after(0, gui.update_accident, event["severity"])
+        
+        # Fire the background email threads
+        send_all_alerts(
+            severity=event["severity"],
+            lat=lat,
+            lon=lon,
+            speed=speed,
+            accel=event["accel"],
+            tilt=event["tilt"],
+            reason=event["reason"]
+        )
 
-    speak("Emergency alert sent successfully!")
-    print("All alerts sent!")
-
-
-# ─────────────────────────────────────
-# MAIN MONITORING LOOP
-# Runs in background thread
-# Reads sensor 20 times per second
-# ─────────────────────────────────────
 def monitor(gui):
-    accident_active = False
-
-    print("Monitoring started...")
-
+    """
+    The main telemetry loop. Runs on a background thread so 
+    it never freezes the Tkinter touch screen.
+    """
     while True:
         try:
-            # Read sensor
-            accel, tilt = sensor.get_all()
+            # Poll Sensors
+            accel = sensor.get_magnitude()
+            tilt = sensor.get_tilt()
             lat, lon, speed = gps.get_location()
-
-            # Run through detector
-            # with false positive filtering
-            event = detector.analyze(
-                accel, abs(tilt), speed
-            )
-
-            if event and not accident_active:
-                # ACCIDENT CONFIRMED
-                accident_active = True
+            
+            # Run False-Positive Filtering Analysis
+            event = detector.analyze(accel, tilt, speed)
+            
+            if event:
+                # 🚨 CRASH DETECTED
+                # Lock the GUI with the exact crash parameters
+                gui.root.after(0, gui.update_accident, event["severity"])
+                
+                # Execute the Voice and Alert sequence
                 emergency_sequence(gui, event)
-                accident_active = False
-
+                
+                # INFINITE LOOP PREVENTION: Wipe the detector's memory
+                detector.accel_history.clear() 
+                detector.tilt_history.clear()
             else:
-                # All normal
-                gui.root.after(
-                    0,
-                    gui.update_safe,
-                    accel, tilt,
-                    speed, lat, lon
-                )
-
-            # 0.05 seconds = 20 reads per second
+                # ✅ SYSTEM SAFE
+                # Update live telemetry numbers on the dashboard
+                gui.root.after(0, gui.update_safe, accel, tilt, speed, lat, lon)
+                
+            # Loop frequency (20 times per second)
             time.sleep(0.05)
-
+            
         except Exception as e:
-            print(f"Monitor error: {e}")
-            time.sleep(1)
-
-
-# ─────────────────────────────────────
-# ENTRY POINT
-# ─────────────────────────────────────
-def main():
-    speak("CrashGuard system starting up.")
-    print("Initializing GUI...")
-
-    root = tk.Tk()
-    gui  = CrashGuardGUI(root)
-
-    # Start monitor in background thread
-    monitor_thread = threading.Thread(
-        target=monitor,
-        args=(gui,),
-        daemon=True
-    )
-    monitor_thread.start()
-
-    speak("CrashGuard system is ready.")
-    print("System ready!")
-
-    # GUI runs on main thread
-    root.mainloop()
-
+            # HARDWARE DISCONNECT PROTECTION
+            print(f"System Error: {e}")
+            gui.root.after(0, lambda: gui.status_lbl.config(text="⚠ HARDWARE ERROR", fg="orange"))
+            time.sleep(2)
+            
+            # Safe sensor reconnect sequence
+            try:
+                sensor.__init__()
+            except:
+                pass
 
 if __name__ == "__main__":
-    main()
+    # 1. Initialize the display window
+    root = tk.Tk()
+    
+    # 2. Build the Dashboard UI
+    app_gui = CrashGuardGUI(root)
+    
+    # 3. Launch the hardware monitor in a separate Daemon thread
+    monitor_thread = threading.Thread(target=monitor, args=(app_gui,), daemon=True)
+    monitor_thread.start()
+    
+    # 4. Startup Announcement (Waits 1.5s for UI to render)
+    root.after(1500, lambda: speak("CrashGuard system is ready."))
+    
+    # 5. Start the UI event loop (must be on the main thread)
+    root.mainloop()
