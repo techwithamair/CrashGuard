@@ -4,10 +4,10 @@
 # ─────────────────────────────────────
 
 # Accident detection thresholds
-ACCIDENT_THRESHOLD   = 2.5   # g minor
-MODERATE_THRESHOLD   = 3.5   # g moderate
-SEVERE_THRESHOLD     = 5.0   # g severe
-TILT_THRESHOLD       = 45    # degrees rollover
+ACCIDENT_THRESHOLD   = 1.2   # g minor
+MODERATE_THRESHOLD   = 1.5   # g moderate
+SEVERE_THRESHOLD     = 2.0   # g severe
+TILT_THRESHOLD       = 30    # degrees rollover
 SPEED_DROP_THRESHOLD = 30    # mph sudden loss
 
 # False positive filter
