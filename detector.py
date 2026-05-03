@@ -33,7 +33,7 @@ class AccidentDetector:
 
         # Run all checks
         impact   = self._check_impact(accel)
-        rollover = self._check_tilt()
+        rollover = self._check_tilt(tilt, accel)
         speed_ev = self._check_speed(speed)
 
         # Update speed history
@@ -46,7 +46,6 @@ class AccidentDetector:
 
     def _check_impact(self, accel):
         # SEVERE: single reading enough
-        # No filter needed at this level
         if accel >= SEVERE_THRESHOLD:
             return "SEVERE"
 
@@ -59,7 +58,6 @@ class AccidentDetector:
             return "MODERATE"
 
         # MINOR: require CONFIRM_READINGS
-        # This filters road bumps
         minor_count = sum(
             1 for r in self.accel_history
             if r >= ACCIDENT_THRESHOLD
@@ -69,18 +67,29 @@ class AccidentDetector:
 
         return "NONE"
 
-    def _check_tilt(self):
+    def _check_tilt(self, tilt, accel):
+        # ── FIX: tilt AND accel combined ──
+        # Tilt alone is not enough
+        # Must also have real movement
+        # accel > 1.5 means actually moving
+        # not just someone holding it sideways
+
         if len(self.tilt_history) < 3:
             return "NONE"
 
         latest = self.tilt_history[-1]
 
-        # Must exceed danger threshold
+        # Must exceed tilt threshold
         if latest < TILT_THRESHOLD:
             return "NONE"
 
+        # Must also have real acceleration
+        # This stops false positives from
+        # just tilting the sensor by hand
+        if accel <= 1.5:
+            return "NONE"
+
         # Check if tilt is INCREASING
-        # not just a momentary lean
         # Real rollover = continuously increasing
         increasing = all(
             self.tilt_history[i] <=
@@ -98,8 +107,6 @@ class AccidentDetector:
 
     def _check_speed(self, speed):
         # Detect sudden speed loss
-        # Normal braking = gradual
-        # Crash = instant drop
         drop = self.prev_speed - speed
 
         if drop >= SPEED_DROP_THRESHOLD:
@@ -111,7 +118,8 @@ class AccidentDetector:
 
         return "NONE"
 
-    def _classify(self, impact, rollover, speed_ev, accel, tilt):
+    def _classify(self, impact, rollover,
+                  speed_ev, accel, tilt):
         # Nothing triggered
         if (impact   == "NONE" and
             rollover == "NONE" and
