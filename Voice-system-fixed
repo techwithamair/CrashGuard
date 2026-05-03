@@ -1,9 +1,3 @@
-# ─────────────────────────────────────
-# CrashGuard - voice_system.py
-# FIXED: Google only — no Vosk needed
-# No WM8960 needed for this version
-# ─────────────────────────────────────
-
 import ctypes
 import os
 import sys
@@ -12,26 +6,13 @@ import subprocess
 import pyttsx3
 import speech_recognition as sr
 
-# ══════════════════════════════════════
-# BLOCK 1: SILENCE ALSA NOISE
-# ══════════════════════════════════════
 try:
-    _F = ctypes.CFUNCTYPE(
-        None,
-        ctypes.c_char_p, ctypes.c_int,
-        ctypes.c_char_p, ctypes.c_int,
-        ctypes.c_char_p
-    )
+    _F = ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p)
     def _silent(*a): pass
-    ctypes.cdll.LoadLibrary(
-        'libasound.so.2'
-    ).snd_lib_error_set_handler(_F(_silent))
+    ctypes.cdll.LoadLibrary('libasound.so.2').snd_lib_error_set_handler(_F(_silent))
 except:
     pass
 
-# ══════════════════════════════════════
-# BLOCK 2: STDERR SUPPRESSOR
-# ══════════════════════════════════════
 class _HideStderr:
     def __enter__(self):
         try:
@@ -51,10 +32,6 @@ class _HideStderr:
         except:
             pass
 
-# ══════════════════════════════════════
-# BLOCK 3: TTS ENGINE
-# pyttsx3 first, espeak fallback
-# ══════════════════════════════════════
 _tts = None
 try:
     _tts = pyttsx3.init()
@@ -62,7 +39,7 @@ try:
     _tts.setProperty('volume', 1.0)
     print("[TTS] pyttsx3 ready")
 except Exception as e:
-    print(f"[TTS] pyttsx3 failed: {e}")
+    print(f"[TTS] failed: {e}")
 
 def speak(text):
     print(f"[SPEAK] {text}")
@@ -74,39 +51,26 @@ def speak(text):
         except Exception as e:
             print(f"[SPEAK] pyttsx3 error: {e}")
     try:
-        subprocess.run(
-            ['espeak', '-v', 'en',
-             '-s', '145', '-a', '200', text],
-            timeout=20,
-            capture_output=True
-        )
+        subprocess.run(['espeak', '-v', 'en', '-s', '145', '-a', '200', text], timeout=20, capture_output=True)
     except Exception as e:
         print(f"[SPEAK] espeak error: {e}")
 
-# ══════════════════════════════════════
-# BLOCK 4: YES / NO WORD LISTS
-# ══════════════════════════════════════
 _YES = [
     "yes", "yeah", "yep", "yup", "yea", "ya",
-    "okay", "ok", "k", "fine", "good", "great",
-    "alright", "all right", "right", "sure",
-    "correct", "affirmative", "aye", "safe",
-    "cancel", "stop", "im fine", "i am fine",
-    "i am okay", "i am good", "i'm fine",
-    "i'm okay", "i'm good", "am fine",
-    "am okay", "no problem", "doing fine",
-    "doing good", "doing okay",
+    "okay", "ok", "fine", "good", "great",
+    "alright", "all right", "sure", "correct",
+    "safe", "cancel", "stop", "im fine",
+    "i am fine", "i am okay", "i'm fine",
+    "i'm okay", "am fine", "am okay",
 ]
 
 _NO = [
     "no", "nope", "nah", "negative",
     "help", "hurt", "pain", "injured",
-    "injury", "emergency", "accident",
-    "call", "send", "need help", "i need",
-    "assist", "danger", "not okay",
-    "not fine", "not good", "sos",
-    "mayday", "alert", "ambulance",
-    "hospital", "doctor", "bleeding",
+    "emergency", "accident", "need help",
+    "i need", "danger", "not okay",
+    "not fine", "sos", "mayday",
+    "ambulance", "hospital", "doctor",
 ]
 
 def _classify(text):
@@ -116,62 +80,35 @@ def _classify(text):
     print(f"[CLASS] Checking: '{text}'")
     for w in _YES:
         if w in text:
-            print(f"[CLASS] YES matched: '{w}'")
+            print(f"[CLASS] YES: '{w}'")
             return "OKAY"
     for w in _NO:
         if w in text:
-            print(f"[CLASS] NO matched: '{w}'")
+            print(f"[CLASS] NO: '{w}'")
             return "HELP"
-    print(f"[CLASS] No match for: '{text}'")
     return None
 
-# ══════════════════════════════════════
-# BLOCK 5: SPEECH RECOGNIZER
-# ══════════════════════════════════════
 _rec = sr.Recognizer()
 _rec.energy_threshold         = 100
 _rec.dynamic_energy_threshold = True
 _rec.pause_threshold          = 1.0
-_rec.phrase_threshold         = 0.3
-_rec.operation_timeout        = None
 
-# ══════════════════════════════════════
-# BLOCK 6: GOOGLE LISTEN
-# Records mic and sends to Google
-# Returns text string or status code
-# ══════════════════════════════════════
 def _listen_google(timeout=15):
     try:
         with _HideStderr():
             mic = sr.Microphone()
-
         with mic as source:
-            print("[MIC] Calibrating (1s)...")
-            _rec.adjust_for_ambient_noise(
-                source, duration=1
-            )
-            print(
-                f"[MIC] Threshold: "
-                f"{_rec.energy_threshold:.0f}"
-            )
-            print(
-                f"[MIC] Listening {timeout}s "
-                f"— SPEAK NOW"
-            )
-            audio = _rec.listen(
-                source,
-                timeout=timeout,
-                phrase_time_limit=8
-            )
-
+            print("[MIC] Calibrating...")
+            _rec.adjust_for_ambient_noise(source, duration=1)
+            print(f"[MIC] Listening {timeout}s — SPEAK NOW")
+            audio = _rec.listen(source, timeout=timeout, phrase_time_limit=8)
         print("[GOOGLE] Sending to Google...")
         text = _rec.recognize_google(audio)
         text = text.lower().strip()
         print(f"[GOOGLE] Heard: '{text}'")
         return text
-
     except sr.WaitTimeoutError:
-        print("[GOOGLE] No speech detected")
+        print("[GOOGLE] Timeout")
         return "timeout"
     except sr.UnknownValueError:
         print("[GOOGLE] Could not understand")
@@ -183,131 +120,34 @@ def _listen_google(timeout=15):
         print(f"[GOOGLE] Error: {e}")
         return "error"
 
-# ══════════════════════════════════════
-# BLOCK 7: SINGLE LISTEN ATTEMPT
-# Listens once and classifies result
-# ══════════════════════════════════════
 def _listen_once(timeout=15):
     text = _listen_google(timeout)
-
-    # Got real speech
-    if text not in (
-        "timeout", "unknown",
-        "no_wifi", "error", ""
-    ):
+    if text not in ("timeout", "unknown", "no_wifi", "error", ""):
         match = _classify(text)
         if match:
             return match
         return "no_match"
-
-    # No speech or error
     return text
 
-# ══════════════════════════════════════
-# BLOCK 8: MAIN FUNCTION
-# Called by main.py after crash detected
-# 2 attempts × 15 seconds = 30 seconds
-# Returns: OKAY | HELP | TIMEOUT
-# ══════════════════════════════════════
 def ask_and_listen():
-    # Speak the prompt
-    speak(
-        "Accident detected! "
-        "Are you okay? "
-        "Say YES if you are fine. "
-        "Say NO if you need help. "
-        "You have 15 seconds."
-    )
-
-    # ── ATTEMPT 1 ──────────────────────
+    speak("Accident detected! Are you okay? Say YES if you are fine. Say NO if you need help. You have 15 seconds.")
     print("\n[ASR] Attempt 1 of 2")
     result1 = _listen_once(timeout=15)
-
     if result1 in ("OKAY", "HELP"):
         return result1
-
-    # Give second chance with prompt
     if result1 == "timeout":
-        speak(
-            "I did not hear you. "
-            "Say YES if okay "
-            "or NO if you need help."
-        )
+        speak("I did not hear you. Say YES if okay or NO if you need help.")
     elif result1 == "no_match":
-        speak(
-            "I heard you but was not clear. "
-            "Please say YES or NO."
-        )
-    elif result1 == "no_wifi":
-        speak(
-            "No internet connection. "
-            "Please say YES or NO clearly."
-        )
+        speak("I heard you but was not clear. Please say YES or NO.")
     else:
         speak("Please say YES or NO.")
-
-    # ── ATTEMPT 2 ──────────────────────
     print("\n[ASR] Attempt 2 of 2")
     result2 = _listen_once(timeout=15)
-
     if result2 in ("OKAY", "HELP"):
         return result2
-
-    # Both failed
     print("\n[ASR] No response after 2 attempts")
-    speak(
-        "No response detected. "
-        "Sending emergency alert now."
-    )
+    speak("No response detected. Sending emergency alert now.")
     return "TIMEOUT"
 
-# ══════════════════════════════════════
-# ask_driver = alias for main.py
-# ══════════════════════════════════════
 def ask_driver():
     return ask_and_listen()
-
-# ══════════════════════════════════════
-# STANDALONE TEST
-# Run: python3 voice_system.py
-# ══════════════════════════════════════
-if __name__ == "__main__":
-    SEP = "═" * 50
-    print(f"\n{SEP}")
-    print("  CRASHGUARD VOICE SYSTEM — GOOGLE")
-    print(SEP)
-    print(f"  Threshold : {_rec.energy_threshold}")
-    print(f"  WiFi      : required")
-    print(SEP)
-
-    print("\n[1] Speaker test...")
-    speak("Speaker test. Can you hear me clearly?")
-    time.sleep(1)
-
-    print("\n[2] Google voice recognition test...")
-    print("    Say YES or OKAY when prompted")
-
-    result = ask_and_listen()
-    print(f"\nFINAL RESULT: '{result}'")
-
-    if result == "OKAY":
-        speak("Google voice working perfectly!")
-        print("\n✅ PASS")
-    elif result == "HELP":
-        speak("Help detected. Alert would send.")
-        print("\n✅ PASS")
-    else:
-        speak("No response detected.")
-        print("\n❌ Voice not detected")
-        print("\nFIXES:")
-        print("1. Check Pi is on WiFi: ping google.com")
-        print("2. Plug in a USB mic or headset")
-        print("3. Lower threshold to 50")
-        print("4. Run: python3 -c \"import pyaudio;")
-        print("   p=pyaudio.PyAudio();")
-        print("   [print(i,p.get_device_info_by_index(i)['name'])")
-        print("   for i in range(p.get_device_count())];")
-        print("   p.terminate()\"")
-    print(SEP)
-EOF
-echo "Done"
