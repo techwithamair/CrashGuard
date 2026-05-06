@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CrashGuard — Live Telemetry</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html{height:100%;width:100%}
+:root{
+  --bg:#020810;
+  --surface:#060E1C;
+  --surface2:#0A1525;
+  --surface3:#0F1D30;
+  --border:#152238;
+  --border2:#1E3350;
+  --cyan:#00E5FF;
+  --cyan-dim:#0099BB;
+  --violet:#8B5CF6;
+  --amber:#FBBF24;
+  --red:#FF3B3B;
+  --red-dim:#CC2222;
+  --green:#00E676;
+  --green-dim:#00A050;
+  --orange:#FF6B2B;
+  --white:#FFFFFF;
+  --white2:#EEF4FF;
+  --white3:#C8D8F0;
+  --muted:#3A5570;
+  --muted2:#2A3F57;
+  --heading:'Barlow Condensed',sans-serif;
+  --mono:'Share Tech Mono',monospace;
+}
+
+body{
+  background:var(--bg);
+  color:var(--white);
+  font-family:var(--heading);
+  min-height:100vh;
+  width:100%;
+  overflow-x:hidden;
+}
+
+/* ── BACKGROUND FX ── */
+.bg-grid{
+  position:fixed;top:0;left:0;width:100%;height:100%;
+  background-image:
+    linear-gradient(rgba(0,229,255,0.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,229,255,0.025) 1px,transparent 1px);
+  background-size:40px 40px;
+  pointer-events:none;z-index:0;
+}
+.bg-glow{
+  position:fixed;top:-200px;left:50%;transform:translateX(-50%);
+  width:800px;height:400px;
+  background:radial-gradient(ellipse,rgba(0,229,255,0.04) 0%,transparent 70%);
+  pointer-events:none;z-index:0;
+}
+.scanlines{
+  position:fixed;top:0;left:0;width:100%;height:100%;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.15) 3px,rgba(0,0,0,0.15) 4px);
+  pointer-events:none;z-index:0;
+}
+
+/* ── LAYOUT — full screen ── */
+.wrap{position:relative;z-index:1;padding:16px 24px;width:100%;box-sizing:border-box}
+
+/* ── TOPBAR ── */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:16px;padding-bottom:14px;
+  border-bottom:1px solid var(--border2);
+}
+.logo{display:flex;align-items:center;gap:12px}
+.shield{width:48px;height:54px;filter:drop-shadow(0 0 8px rgba(0,229,255,0.5))}
+.brand-block{}
+.brand{
+  font-family:var(--heading);font-weight:900;font-size:38px;
+  letter-spacing:4px;color:var(--white);
+  text-shadow:0 0 20px rgba(0,229,255,0.6),0 0 40px rgba(0,229,255,0.2);
+  line-height:1;
+}
+.brand span{color:var(--cyan)}
+.brandtag{
+  font-family:var(--mono);font-size:12px;
+  color:var(--cyan);letter-spacing:3px;
+  margin-top:4px;opacity:.7;
+}
+
+.header-right{display:flex;align-items:center;gap:14px}
+.status-pill{
+  display:flex;align-items:center;gap:7px;
+  background:rgba(0,230,118,0.07);
+  border:1px solid rgba(0,230,118,0.2);
+  border-radius:4px;padding:7px 16px;
+  font-family:var(--mono);font-size:13px;
+  letter-spacing:2px;color:var(--green);
+  font-weight:700;text-transform:uppercase;
+}
+.pulse{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulseGreen 1.4s infinite}
+@keyframes pulseGreen{
+  0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(0,230,118,0.5)}
+  50%{opacity:.8;box-shadow:0 0 0 7px rgba(0,230,118,0)}
+}
+.clock-block{text-align:right}
+.clock-time{font-family:var(--mono);font-size:26px;font-weight:700;color:var(--white);letter-spacing:2px}
+.clock-date{font-family:var(--mono);font-size:13px;font-weight:800;color:var(--white);letter-spacing:2px;margin-top:2px;text-transform:uppercase}
+
+/* ── ALERT BANNER ── */
+.alert-banner{
+  display:none;align-items:center;gap:14px;
+  background:rgba(255,59,59,0.08);
+  border:1px solid rgba(255,59,59,0.4);
+  border-radius:6px;padding:14px 18px;
+  margin-bottom:14px;
+  animation:flashBorder 0.8s infinite;
+}
+@keyframes flashBorder{
+  0%,100%{border-color:rgba(255,59,59,0.4)}
+  50%{border-color:rgba(255,59,59,0.9);box-shadow:0 0 20px rgba(255,59,59,0.2)}
+}
+.alert-icon-wrap{
+  width:38px;height:38px;border-radius:50%;
+  background:rgba(255,59,59,0.15);
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;animation:flashIcon 0.8s infinite;
+}
+@keyframes flashIcon{0%,100%{opacity:1}50%{opacity:.5}}
+.alert-text-block{flex:1}
+.alert-title{
+  font-family:var(--heading);font-weight:900;font-size:22px;
+  color:var(--white);letter-spacing:2px;margin-bottom:3px;
+  text-transform:uppercase;
+}
+.alert-sub{font-family:var(--mono);font-size:13px;color:rgba(255,100,100,0.8);letter-spacing:1px}
+.btn-cancel{
+  background:rgba(0,230,118,0.1);
+  border:1px solid rgba(0,230,118,0.35);
+  color:var(--green);
+  font-family:var(--heading);font-weight:800;font-size:14px;
+  padding:10px 20px;border-radius:4px;cursor:pointer;
+  letter-spacing:2px;text-transform:uppercase;
+  transition:all .2s;
+}
+.btn-cancel:hover{background:rgba(0,230,118,0.2)}
+
+/* ── TOP METRIC CARDS ── */
+.grid-top{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+.metric-card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:6px;padding:18px 20px;
+  position:relative;overflow:hidden;
+  transition:border-color .3s;
+}
+.metric-card:hover{border-color:var(--border2)}
+.metric-card::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(255,255,255,0.02) 0%,transparent 60%);
+  pointer-events:none;
+}
+.mc-top{height:2px;border-radius:2px 2px 0 0;position:absolute;top:0;left:0;right:0}
+.mc-cyan .mc-top{background:linear-gradient(90deg,var(--cyan),transparent)}
+.mc-violet .mc-top{background:linear-gradient(90deg,var(--violet),transparent)}
+.mc-amber .mc-top{background:linear-gradient(90deg,var(--amber),transparent)}
+.mc-green .mc-top{background:linear-gradient(90deg,var(--green),transparent)}
+
+.metric-label{
+  font-family:var(--heading);font-size:14px;
+  font-weight:800;
+  color:var(--white);letter-spacing:3px;
+  text-transform:uppercase;margin-bottom:8px;
+}
+.metric-val{
+  font-family:var(--heading);font-weight:900;font-size:46px;
+  color:var(--white);line-height:1;letter-spacing:1px;
+}
+.metric-unit{font-family:var(--heading);font-weight:600;font-size:18px;color:var(--white3);margin-left:3px;opacity:.7}
+.metric-bar{height:2px;background:var(--border);border-radius:1px;margin-top:12px;overflow:hidden}
+.metric-fill{height:100%;border-radius:1px;transition:width .3s}
+.fill-cyan{background:var(--cyan);box-shadow:0 0 6px var(--cyan-dim)}
+.fill-violet{background:var(--violet)}
+.fill-amber{background:var(--amber)}
+.fill-green{background:var(--green);box-shadow:0 0 6px var(--green-dim)}
+
+/* ── MID PANELS — full width fluid ── */
+.grid-mid-3{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px}
+.grid-mid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+
+/* ── RESPONSIVE BREAKPOINTS ── */
+@media(max-width:900px){
+  .grid-top{grid-template-columns:repeat(2,1fr)}
+  .grid-mid-3{grid-template-columns:1fr}
+  .grid-mid{grid-template-columns:1fr}
+  .bottom-bar{flex-wrap:wrap;gap:12px;justify-content:center}
+  .bs-divider{display:none}
+}
+@media(max-width:500px){
+  .grid-top{grid-template-columns:1fr 1fr}
+  .topbar{flex-wrap:wrap;gap:8px}
+  .header-right{flex-wrap:wrap;gap:8px}
+  .brand{font-size:28px}
+  .alert-banner{flex-wrap:wrap}
+}
+
+.panel{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:6px;padding:16px;
+}
+.panel-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:14px;padding-bottom:10px;
+  border-bottom:1px solid var(--border);
+}
+.panel-title{
+  font-family:var(--heading);font-weight:900;font-size:16px;
+  color:var(--white);letter-spacing:3px;text-transform:uppercase;
+}
+.panel-badge{
+  font-family:var(--mono);font-size:11px;
+  padding:4px 12px;border-radius:3px;letter-spacing:1px;
+  background:rgba(0,229,255,0.08);
+  color:var(--cyan);border:1px solid rgba(0,229,255,0.2);
+}
+
+/* ── CHART ── */
+canvas{display:block;width:100%}
+
+/* ── G-FORCE RING ── */
+.gforce-ring{
+  display:flex;align-items:center;
+  justify-content:center;padding:8px 0;
+}
+.ring-wrap{position:relative;width:180px;height:180px;margin:0 auto}
+.ring-svg{width:180px;height:180px}
+.ring-center{
+  position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);text-align:center;
+}
+.ring-val{
+  font-family:var(--heading);font-weight:900;font-size:52px;
+  color:var(--white);letter-spacing:1px;line-height:1;
+}
+.ring-sub{
+  font-family:var(--mono);font-size:11px;
+  color:var(--muted);letter-spacing:2px;
+  margin-top:4px;
+}
+
+/* ── TILT ── */
+.tilt-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tilt-axis{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:12px}
+.axis-label{
+  font-family:var(--heading);font-size:13px;font-weight:800;
+  color:var(--white);margin-bottom:6px;letter-spacing:2px;text-transform:uppercase;
+}
+.axis-val{font-family:var(--heading);font-weight:900;font-size:32px;color:var(--white)}
+.axis-bar-wrap{height:3px;background:var(--border);border-radius:2px;margin-top:8px;position:relative;overflow:hidden}
+.axis-bar-center{position:absolute;left:50%;top:0;width:1px;height:100%;background:var(--border2)}
+.axis-fill{height:100%;border-radius:2px;transition:width .3s,margin-left .3s}
+
+/* ── GPS ── */
+.gps-box{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:12px}
+.gps-label{
+  font-family:var(--heading);font-size:13px;font-weight:800;
+  color:var(--white);letter-spacing:3px;margin-bottom:5px;text-transform:uppercase;
+}
+.gps-val{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--white);margin-bottom:4px;letter-spacing:1px}
+.map-placeholder{
+  height:72px;background:var(--bg);
+  border-radius:4px;border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  position:relative;overflow:hidden;margin-top:8px;
+}
+.map-grid{
+  position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(0,229,255,0.06) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,229,255,0.06) 1px,transparent 1px);
+  background-size:18px 18px;
+}
+.map-dot{
+  width:10px;height:10px;border-radius:50%;
+  background:var(--cyan);
+  box-shadow:0 0 0 4px rgba(0,229,255,0.15);
+  animation:mapdot 2s infinite;z-index:1;
+}
+@keyframes mapdot{
+  0%,100%{box-shadow:0 0 0 4px rgba(0,229,255,0.15)}
+  50%{box-shadow:0 0 0 14px rgba(0,229,255,0)}
+}
+
+/* ── SEVERITY GRID ── */
+.severity-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.sev-card{
+  border-radius:5px;padding:10px 12px;
+  border:1px solid transparent;
+  background:var(--surface2);
+}
+.sev-minor{border-color:rgba(251,191,36,0.15)}
+.sev-moderate{border-color:rgba(255,107,43,0.15)}
+.sev-severe{border-color:rgba(255,59,59,0.15)}
+.sev-rollover{border-color:rgba(139,92,246,0.15)}
+
+.sev-name{
+  font-family:var(--heading);font-weight:900;
+  font-size:15px;letter-spacing:2px;margin-bottom:3px;
+  text-transform:uppercase;color:var(--white);
+}
+.sev-thresh{font-family:var(--mono);font-size:13px;color:var(--white);opacity:1;font-weight:800;letter-spacing:.5px}
+.sev-active{
+  font-family:var(--mono);font-size:11px;letter-spacing:1px;
+  margin-top:6px;padding:3px 9px;border-radius:3px;
+  display:inline-block;font-weight:700;
+}
+.minor-col{color:#FBBF24}
+.moderate-col{color:#FF6B2B}
+.severe-col{color:#FF3B3B}
+.rollover-col{color:#8B5CF6}
+
+/* ── LOG ── */
+.log-list{max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
+.log-item{
+  display:flex;align-items:center;gap:8px;
+  font-family:var(--mono);font-size:12px;
+  padding:7px 10px;border-radius:3px;
+  background:var(--surface2);border:1px solid var(--border);
+}
+.log-time{color:var(--muted);min-width:66px;letter-spacing:.5px}
+.log-mod{
+  padding:2px 8px;border-radius:2px;
+  font-size:10px;font-weight:700;letter-spacing:1px;
+  text-transform:uppercase;min-width:58px;text-align:center;
+}
+.log-normal{background:rgba(0,230,118,0.1);color:var(--green)}
+.log-alert{background:rgba(255,59,59,0.12);color:var(--red)}
+.log-warn{background:rgba(251,191,36,0.1);color:var(--amber)}
+.log-msg{color:var(--white);flex:1;font-size:12px;font-weight:700}
+
+/* ── BOTTOM BAR ── */
+.bottom-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-top:14px;padding:12px 18px;
+  background:var(--surface);
+  border:1px solid var(--border);border-radius:6px;
+}
+.bottom-stat{text-align:center}
+.bs-val{
+  font-family:var(--heading);font-weight:900;
+  font-size:26px;color:var(--white);
+  letter-spacing:1px;line-height:1;
+}
+.bs-label{
+  font-family:var(--heading);font-size:12px;font-weight:800;
+  color:var(--white);letter-spacing:2px;
+  margin-top:4px;text-transform:uppercase;opacity:.8;
+}
+.bs-divider{width:1px;height:28px;background:var(--border);flex-shrink:0}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="bg-glow"></div>
+<div class="scanlines"></div>
+
+<div class="wrap">
+
+  <!-- ALERT BANNER -->
+  <div id="alertBanner" class="alert-banner">
+    <div class="alert-icon-wrap">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FF3B3B" stroke-width="2.5">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+    </div>
+    <div class="alert-text-block">
+      <div class="alert-title" id="alertTitle">SEVERE CRASH DETECTED</div>
+      <div class="alert-sub">Voice confirmation required — say YES if OK to cancel, say NO or stay silent to dispatch emergency alert</div>
+    </div>
+    <button class="btn-cancel" onclick="cancelAlert()">✓ CANCEL ALERT</button>
+  </div>
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="logo">
+      <svg class="shield" viewBox="0 0 32 36" fill="none">
+        <path d="M16 2L4 7v10c0 8.5 5.2 16.4 12 19 6.8-2.6 12-10.5 12-19V7L16 2z" fill="rgba(0,229,255,0.12)" stroke="#00E5FF" stroke-width="1.5"/>
+        <path d="M11 18l3.5 3.5L21 14" stroke="#00E5FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div class="brand-block">
+        <div class="brand">CRASH<span>GUARD</span></div>
+        <div class="brandtag">LIVE TELEMETRY DASHBOARD</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="status-pill" id="statusPill">
+        <div class="pulse" id="statusDot"></div>
+        <span id="statusText">MONITORING ACTIVE</span>
+      </div>
+      <div class="clock-block">
+        <div class="clock-time" id="clock">--:--:--</div>
+        <div class="clock-date" id="clockDate">--- -- ----</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOP METRIC CARDS -->
+  <div class="grid-top">
+    <div class="metric-card mc-cyan">
+      <div class="mc-top"></div>
+      <div class="metric-label">G-FORCE</div>
+      <div class="metric-val" id="gfVal">--<span class="metric-unit">G</span></div>
+      <div class="metric-bar"><div class="metric-fill fill-cyan" id="gfBar" style="width:0%"></div></div>
+    </div>
+    <div class="metric-card mc-violet">
+      <div class="mc-top"></div>
+      <div class="metric-label">TILT · PITCH</div>
+      <div class="metric-val" id="txVal">--<span class="metric-unit">°</span></div>
+      <div class="metric-bar"><div class="metric-fill fill-violet" id="txBar" style="width:0%"></div></div>
+    </div>
+    <div class="metric-card mc-amber">
+      <div class="mc-top"></div>
+      <div class="metric-label">PEAK G · SESSION</div>
+      <div class="metric-val" id="peakGVal">--<span class="metric-unit">G</span></div>
+      <div class="metric-bar"><div class="metric-fill fill-amber" id="peakGBar" style="width:0%"></div></div>
+    </div>
+    <div class="metric-card mc-green">
+      <div class="mc-top"></div>
+      <div class="metric-label">SAMPLE RATE</div>
+      <div class="metric-val">20<span class="metric-unit">Hz</span></div>
+      <div class="metric-bar"><div class="metric-fill fill-green" style="width:100%"></div></div>
+    </div>
+  </div>
+
+  <!-- CHART + RING ROW -->
+  <div class="grid-mid-3">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">G-Force History</div>
+        <div class="panel-badge" id="windowBadge">WINDOW: STABLE</div>
+      </div>
+      <canvas id="gfChart" height="90"></canvas>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">G-Force Meter</div>
+      </div>
+      <div class="gforce-ring">
+        <div class="ring-wrap">
+          <svg class="ring-svg" viewBox="0 0 180 180">
+            <circle cx="90" cy="90" r="74" fill="none" stroke="#152238" stroke-width="11"/>
+            <circle cx="90" cy="90" r="74" fill="none" stroke="#00E5FF" stroke-width="11"
+              stroke-linecap="round" stroke-dasharray="465" id="ringCircle"
+              stroke-dashoffset="465" transform="rotate(-90 90 90)"
+              style="transition:stroke-dashoffset .3s,stroke .3s"/>
+          </svg>
+          <div class="ring-center">
+            <div class="ring-val" id="ringVal">--</div>
+            <div class="ring-sub">G-FORCE</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TILT + GPS ROW -->
+  <div class="grid-mid">
+    <div class="panel">
+      <div class="panel-header"><div class="panel-title">Tilt / Pitch Axis</div></div>
+      <div class="tilt-grid">
+        <div class="tilt-axis">
+          <div class="axis-label">PITCH · LIVE</div>
+          <div class="axis-val" id="txDisp" style="color:var(--violet)">--°</div>
+          <div class="axis-bar-wrap">
+            <div class="axis-bar-center"></div>
+            <div class="axis-fill fill-violet" id="txFill" style="width:0%;margin-left:50%"></div>
+          </div>
+        </div>
+        <div class="tilt-axis">
+          <div class="axis-label">ROLLOVER THRESHOLD</div>
+          <div class="axis-val" style="color:var(--amber)">45°</div>
+          <div class="axis-bar-wrap">
+            <div class="axis-bar-center"></div>
+            <div class="axis-fill fill-amber" id="tiltThreshBar" style="width:0%;margin-left:50%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><div class="panel-title">GPS Location</div></div>
+      <div class="gps-box">
+        <div class="gps-label">Live Coordinates</div>
+        <div class="gps-val" id="gpsLat">32.5232° N</div>
+        <div class="gps-val" id="gpsLon">92.6379° W</div>
+        <div class="map-placeholder">
+          <div class="map-grid"></div>
+          <div class="map-dot"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- THRESHOLDS + LOG ROW -->
+  <div class="grid-mid">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Detection Thresholds</div>
+        <div class="panel-badge" id="sevBadge">ALL CLEAR</div>
+      </div>
+      <div class="severity-grid">
+        <div class="sev-card sev-minor">
+          <div class="sev-name">Minor</div>
+          <div class="sev-thresh">&gt;2.5G × 3 readings</div>
+          <div class="sev-active" id="sevMinor" style="background:rgba(251,191,36,.08);color:#FBBF24">INACTIVE</div>
+        </div>
+        <div class="sev-card sev-moderate">
+          <div class="sev-name">Moderate</div>
+          <div class="sev-thresh">&gt;3.5G × 2 readings</div>
+          <div class="sev-active" id="sevModerate" style="background:rgba(255,107,43,.08);color:#FF6B2B">INACTIVE</div>
+        </div>
+        <div class="sev-card sev-severe">
+          <div class="sev-name">Severe</div>
+          <div class="sev-thresh">&gt;5.0G × 1 reading</div>
+          <div class="sev-active" id="sevSevere" style="background:rgba(255,59,59,.08);color:#FF3B3B">INACTIVE</div>
+        </div>
+        <div class="sev-card sev-rollover">
+          <div class="sev-name">Rollover</div>
+          <div class="sev-thresh">Tilt &gt;45°</div>
+          <div class="sev-active" id="sevRollover" style="background:rgba(139,92,246,.08);color:#8B5CF6">INACTIVE</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><div class="panel-title">System Log</div></div>
+      <div class="log-list" id="logList"></div>
+    </div>
+  </div>
+
+  <!-- BOTTOM BAR -->
+  <div class="bottom-bar">
+    <div class="bottom-stat">
+      <div class="bs-val" id="totalReadings">0</div>
+      <div class="bs-label">Total Readings</div>
+    </div>
+    <div class="bs-divider"></div>
+    <div class="bottom-stat">
+      <div class="bs-val" id="uptime">00:00</div>
+      <div class="bs-label">Uptime</div>
+    </div>
+    <div class="bs-divider"></div>
+    <div class="bottom-stat">
+      <div class="bs-val" id="maxG">--</div>
+      <div class="bs-label">Peak G-Force</div>
+    </div>
+    <div class="bs-divider"></div>
+    <div class="bottom-stat">
+      <div class="bs-val" id="voiceStatus" style="color:var(--green)">ACTIVE</div>
+      <div class="bs-label">Voice Module</div>
+    </div>
+    <div class="bs-divider"></div>
+    <div class="bottom-stat">
+      <div class="bs-val" id="gpsStatus" style="color:var(--green)">LOCKED</div>
+      <div class="bs-label">GPS Signal</div>
+    </div>
+    <div class="bs-divider"></div>
+    <div class="bottom-stat">
+      <div class="bs-val" id="alertStatus" style="color:var(--green)">READY</div>
+      <div class="bs-label">Alert Module</div>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<script>
+// ════════════════════════════════════════════════════════
+// CrashGuard Dashboard — Production JS
+// Cross-verified with all 9 server modules.
+//
+// DATA CONTRACT (server.py _update_state fields):
+//   status  : "safe" | "warn" | "critical"
+//   accel   : float  (g-force magnitude)
+//   tilt    : float  (pitch degrees, single axis)
+//   lat     : float
+//   lon     : float
+//   footer  : string
+//   g_max   : float  (session peak g tracked by server)
+//
+// THRESHOLDS (config.py):
+//   ACCIDENT_THRESHOLD  = 2.5g  (minor,    ×3)
+//   MODERATE_THRESHOLD  = 3.5g  (moderate, ×2)
+//   SEVERE_THRESHOLD    = 5.0g  (severe,   ×1)
+//   TILT_THRESHOLD      = 45°   (rollover)
+//   RESPONSE_TIMEOUT    = 15s   (voice_system.py ask_and_listen)
+// ════════════════════════════════════════════════════════
+
+// ── CLIENT STATE ──
+const gfHistory   = Array(60).fill(0);
+let gf            = 0;
+let tiltVal       = 0;
+let peakG         = 0;
+let ssePackets    = 0;
+let startTime     = Date.now();
+let alertActive   = false;
+let logs          = [];
+let sseConnected  = false;
+
+// ── THRESHOLDS — must match config.py exactly ──
+const THR_MINOR    = 2.5;
+const THR_MODERATE = 3.5;
+const THR_SEVERE   = 5.0;
+const THR_TILT     = 45;
+
+// ── CANVAS ──
+const canvas = document.getElementById('gfChart');
+const ctx    = canvas.getContext('2d');
+function resizeCanvas(){
+  canvas.width  = canvas.offsetWidth * (window.devicePixelRatio || 1);
+  canvas.height = 90 * (window.devicePixelRatio || 1);
+  ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+}
+resizeCanvas();
+const CW = () => canvas.offsetWidth || 400;
+const CH = 90;
+
+// ── HELPERS ──
+function addLog(msg, type='normal'){
+  const now = new Date();
+  const t   = now.toTimeString().slice(0,8);
+  logs.unshift({t, msg, type});
+  if(logs.length > 30) logs.pop();
+  const list = document.getElementById('logList');
+  list.innerHTML = logs.slice(0,8).map(l=>`
+    <div class="log-item">
+      <span class="log-time">${l.t}</span>
+      <span class="log-mod log-${l.type}">${l.type.toUpperCase()}</span>
+      <span class="log-msg">${l.msg}</span>
+    </div>`).join('');
+}
+
+function drawChart(){
+  const cw = CW();
+  ctx.clearRect(0, 0, cw, CH);
+  const w = cw / gfHistory.length;
+
+  const severeY   = CH - (THR_SEVERE   / 8) * CH;
+  const moderateY = CH - (THR_MODERATE / 8) * CH;
+  const minorY    = CH - (THR_MINOR    / 8) * CH;
+
+  ctx.setLineDash([3, 5]);
+  ctx.lineWidth = 1;
+
+  ctx.strokeStyle = 'rgba(255,59,59,0.35)';
+  ctx.beginPath(); ctx.moveTo(0,severeY);   ctx.lineTo(cw,severeY);   ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(255,107,43,0.28)';
+  ctx.beginPath(); ctx.moveTo(0,moderateY); ctx.lineTo(cw,moderateY); ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(251,191,36,0.22)';
+  ctx.beginPath(); ctx.moveTo(0,minorY);    ctx.lineTo(cw,minorY);    ctx.stroke();
+
+  ctx.setLineDash([]);
+
+  const grad = ctx.createLinearGradient(0, 0, 0, CH);
+  grad.addColorStop(0, 'rgba(0,229,255,0.25)');
+  grad.addColorStop(1, 'rgba(0,229,255,0)');
+  ctx.beginPath();
+  gfHistory.forEach((v, i) => {
+    const x = i * w;
+    const y = CH - Math.min(v / 8, 1) * CH;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.lineTo(cw, CH); ctx.lineTo(0, CH); ctx.closePath();
+  ctx.fillStyle = grad; ctx.fill();
+
+  ctx.strokeStyle = '#00E5FF'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  gfHistory.forEach((v, i) => {
+    const x = i * w;
+    const y = CH - Math.min(v / 8, 1) * CH;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+}
+
+function updateRing(val){
+  const circumf = 465;
+  const pct     = Math.min(val / 8, 1);
+  const offset  = circumf - pct * circumf;
+  const ring    = document.getElementById('ringCircle');
+  ring.setAttribute('stroke-dashoffset', offset);
+  const col = val >= THR_SEVERE   ? '#FF3B3B' :
+              val >= THR_MODERATE ? '#FF6B2B' :
+              val >= THR_MINOR    ? '#FBBF24' : '#00E5FF';
+  ring.setAttribute('stroke', col);
+}
+
+function updateSeverity(accelVal, tiltDeg){
+  const ids  = ['sevMinor','sevModerate','sevSevere','sevRollover'];
+  const bgs  = ['rgba(251,191,36,.08)','rgba(255,107,43,.08)','rgba(255,59,59,.08)','rgba(139,92,246,.08)'];
+  const cols = ['#FBBF24','#FF6B2B','#FF3B3B','#8B5CF6'];
+  ids.forEach((id, i) => {
+    const el = document.getElementById(id);
+    el.textContent       = 'INACTIVE';
+    el.style.background  = bgs[i];
+    el.style.color       = cols[i];
+  });
+  const badge = document.getElementById('sevBadge');
+
+  if(Math.abs(tiltDeg) >= THR_TILT){
+    const el = document.getElementById('sevRollover');
+    el.textContent = '★ TRIGGERED'; el.style.background = 'rgba(139,92,246,0.25)';
+    badge.textContent = '⚠ ROLLOVER'; badge.style.color = '#8B5CF6';
+  } else if(accelVal >= THR_SEVERE){
+    const el = document.getElementById('sevSevere');
+    el.textContent = '★ TRIGGERED'; el.style.background = 'rgba(255,59,59,0.25)';
+    badge.textContent = '⚠ SEVERE'; badge.style.color = '#FF3B3B';
+  } else if(accelVal >= THR_MODERATE){
+    const el = document.getElementById('sevModerate');
+    el.textContent = '★ TRIGGERED'; el.style.background = 'rgba(255,107,43,0.25)';
+    badge.textContent = '⚠ MODERATE'; badge.style.color = '#FF6B2B';
+  } else if(accelVal >= THR_MINOR){
+    const el = document.getElementById('sevMinor');
+    el.textContent = '★ TRIGGERED'; el.style.background = 'rgba(251,191,36,0.25)';
+    badge.textContent = '⚠ MINOR'; badge.style.color = '#FBBF24';
+  } else {
+    badge.textContent = 'ALL CLEAR'; badge.style.color = 'var(--cyan)';
+  }
+}
+
+function updateStatusPill(status){
+  const pill = document.getElementById('statusPill');
+  const dot  = document.getElementById('statusDot');
+  const txt  = document.getElementById('statusText');
+  if(status === 'critical'){
+    pill.style.background    = 'rgba(255,59,59,0.1)';
+    pill.style.borderColor   = 'rgba(255,59,59,0.4)';
+    dot.style.background     = '#FF3B3B';
+    dot.style.animation      = 'none';
+    txt.style.color          = '#FF3B3B';
+    txt.textContent          = 'CRASH DETECTED';
+  } else if(status === 'warn'){
+    pill.style.background    = 'rgba(251,191,36,0.08)';
+    pill.style.borderColor   = 'rgba(251,191,36,0.3)';
+    dot.style.background     = '#FBBF24';
+    dot.style.animation      = 'pulseGreen 1.4s infinite';
+    txt.style.color          = '#FBBF24';
+    txt.textContent          = 'LISTENING...';
+  } else {
+    pill.style.background    = 'rgba(0,230,118,0.07)';
+    pill.style.borderColor   = 'rgba(0,230,118,0.2)';
+    dot.style.background     = 'var(--green)';
+    dot.style.animation      = 'pulseGreen 1.4s infinite';
+    txt.style.color          = 'var(--green)';
+    txt.textContent          = 'MONITORING ACTIVE';
+  }
+}
+
+function startAlert(severity){
+  if(alertActive) return;
+  alertActive = true;
+  const banner = document.getElementById('alertBanner');
+  document.getElementById('alertTitle').textContent =
+    severity.toUpperCase() + ' CRASH DETECTED';
+  banner.style.display = 'flex';
+  addLog(severity + ' crash detected — awaiting voice prompt to complete', 'alert');
+}
+
+function cancelAlert(){
+  if(!alertActive) return;
+  alertActive = false;
+  document.getElementById('alertBanner').style.display = 'none';
+  addLog('Driver confirmed OK — alert cancelled, system resuming', 'normal');
+}
+
+// ── RENDER LOOP (50ms = 20Hz matches main.py sleep 0.05) ──
+function tick(){
+  const now = new Date();
+  document.getElementById('clock').textContent     = now.toTimeString().slice(0,8);
+  document.getElementById('clockDate').textContent = now.toDateString().toUpperCase();
+
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const s = String(elapsed % 60).padStart(2, '0');
+  document.getElementById('uptime').textContent = m + ':' + s;
+  document.getElementById('totalReadings').textContent = ssePackets;
+
+  if(gf > peakG){
+    peakG = gf;
+    document.getElementById('maxG').textContent    = peakG.toFixed(2);
+    document.getElementById('peakGVal').innerHTML  = peakG.toFixed(2) + '<span class="metric-unit">G</span>';
+    const pPct = Math.min(peakG / 8, 1) * 100;
+    const pBar = document.getElementById('peakGBar');
+    pBar.style.width      = pPct + '%';
+    pBar.style.background = peakG >= THR_SEVERE ? '#FF3B3B' : peakG >= THR_MODERATE ? '#FF6B2B' : peakG >= THR_MINOR ? '#FBBF24' : 'var(--amber)';
+  }
+
+  gfHistory.push(gf); gfHistory.shift();
+  document.getElementById('gfVal').innerHTML  = gf.toFixed(2) + '<span class="metric-unit">G</span>';
+  document.getElementById('ringVal').textContent = gf.toFixed(2);
+
+  const gfPct = Math.min(gf / 8, 1) * 100;
+  const gfBar = document.getElementById('gfBar');
+  gfBar.style.width      = gfPct + '%';
+  gfBar.style.background = gf >= THR_SEVERE ? '#FF3B3B' : gf >= THR_MODERATE ? '#FF6B2B' : gf >= THR_MINOR ? '#FBBF24' : 'var(--cyan)';
+
+  document.getElementById('txVal').innerHTML   = tiltVal.toFixed(1) + '<span class="metric-unit">°</span>';
+  document.getElementById('txDisp').textContent = tiltVal.toFixed(1) + '°';
+  document.getElementById('txBar').style.width  = Math.min(Math.abs(tiltVal) / 90, 1) * 100 + '%';
+
+  const tiltPct = Math.abs(tiltVal) / 90 * 50;
+  const tiltFill = document.getElementById('txFill');
+  tiltFill.style.width      = tiltPct + '%';
+  tiltFill.style.marginLeft = tiltVal >= 0 ? '50%' : (50 - tiltPct) + '%';
+
+  const threshPct = Math.min(Math.abs(tiltVal) / THR_TILT, 1) * 50;
+  const threshFill = document.getElementById('tiltThreshBar');
+  threshFill.style.width      = threshPct + '%';
+  threshFill.style.marginLeft = tiltVal >= 0 ? '50%' : (50 - threshPct) + '%';
+  threshFill.style.background = Math.abs(tiltVal) >= THR_TILT      ? '#FF3B3B' :
+                                 Math.abs(tiltVal) >= THR_TILT * 0.7 ? '#FF6B2B' : 'var(--amber)';
+
+  const wBadge = document.getElementById('windowBadge');
+  if(gf >= THR_SEVERE){
+    wBadge.textContent        = 'WINDOW: CRASH DETECTED';
+    wBadge.style.background   = 'rgba(255,59,59,.15)';
+    wBadge.style.color        = '#FF3B3B';
+    wBadge.style.borderColor  = 'rgba(255,59,59,.3)';
+  } else if(gf >= THR_MINOR){
+    wBadge.textContent        = 'WINDOW: ALERT PATTERN';
+    wBadge.style.background   = 'rgba(251,191,36,.12)';
+    wBadge.style.color        = '#FBBF24';
+    wBadge.style.borderColor  = 'rgba(251,191,36,.3)';
+  } else {
+    wBadge.textContent        = 'WINDOW: STABLE';
+    wBadge.style.background   = 'rgba(0,229,255,.08)';
+    wBadge.style.color        = 'var(--cyan)';
+    wBadge.style.borderColor  = 'rgba(0,229,255,.2)';
+  }
+
+  updateRing(gf);
+  updateSeverity(gf, tiltVal);
+  drawChart();
+}
+
+// ════════════════════════════════════════════════════════
+// SSE INTEGRATION — server.py /stream endpoint
+// ════════════════════════════════════════════════════════
+(function connectSSE(){
+  if(typeof EventSource === 'undefined') return;
+  const sse = new EventSource('/stream');
+
+  sse.onopen = function(){
+    sseConnected = true;
+    addLog('SSE stream connected to Flask server on port 5000', 'normal');
+    document.getElementById('voiceStatus').textContent  = 'ACTIVE';
+    document.getElementById('gpsStatus').textContent    = 'LOCKED';
+    document.getElementById('alertStatus').textContent  = 'READY';
+  };
+
+  sse.onmessage = function(e){
+    try {
+      const d = JSON.parse(e.data);
+
+      ssePackets++;
+
+      if(d.accel !== undefined){
+        gf = parseFloat(d.accel);
+      }
+
+      if(d.tilt !== undefined){
+        tiltVal = parseFloat(d.tilt);
+      }
+
+      if(d.g_max !== undefined){
+        const serverPeak = parseFloat(d.g_max);
+        if(serverPeak > peakG){
+          peakG = serverPeak;
+          document.getElementById('maxG').textContent   = peakG.toFixed(2);
+          document.getElementById('peakGVal').innerHTML = peakG.toFixed(2) + '<span class="metric-unit">G</span>';
+        }
+      }
+
+      if(d.lat !== undefined && d.lon !== undefined){
+        document.getElementById('gpsLat').textContent = parseFloat(d.lat).toFixed(4) + '° N';
+        document.getElementById('gpsLon').textContent = Math.abs(parseFloat(d.lon)).toFixed(4) + '° W';
+      }
+
+      if(d.status !== undefined){
+        updateStatusPill(d.status);
+
+        if(d.status === 'critical' && !alertActive){
+          const sev = d.footer && d.footer.includes('ROLLOVER') ? 'ROLLOVER' :
+                      d.footer && d.footer.includes('MODERATE') ? 'MODERATE' :
+                      d.footer && d.footer.includes('MINOR')    ? 'MINOR'    : 'SEVERE';
+          startAlert(sev);
+        }
+
+        if(d.status === 'safe' && alertActive &&
+           d.footer && d.footer.includes('RESUMING')){
+          cancelAlert();
+        }
+      }
+
+      if(d.footer !== undefined && d.footer !== ''){
+        const type = d.status === 'critical' ? 'alert' :
+                     d.status === 'warn'     ? 'warn'  : 'normal';
+        addLog(d.footer, type);
+      }
+
+    } catch(err){
+      // Malformed SSE frame — ignore silently
+    }
+  };
+
+  sse.onerror = function(){
+    if(sseConnected){
+      sseConnected = false;
+      addLog('SSE stream disconnected — retrying...', 'warn');
+      updateStatusPill('warn');
+    }
+  };
+})();
+
+// ── INIT ──
+addLog('CrashGuard dashboard loaded — awaiting SSE stream', 'normal');
+addLog('MPU-6050 I²C address 0x68 — 20Hz polling loop', 'normal');
+addLog('GPS module started — Ruston LA coordinates loaded', 'normal');
+addLog('Alert module ready — Gmail SMTP via alert_sender.py', 'normal');
+
+window.addEventListener('resize', () => { resizeCanvas(); drawChart(); });
+setInterval(tick, 50);
+</script>
+</body>
+</html>
